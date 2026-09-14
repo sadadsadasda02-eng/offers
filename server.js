@@ -70,17 +70,8 @@ async function getMappings() {
 // In-memory storage (persisted to file)
 const DATA_FILE = path.join(__dirname, 'offers-data.json');
 
-// Initialize data structure
-let offersData = {
-  mainUsername: 'danbao',
-  ownerUsername: 'danbao-t-me.ton',
-  salePrice: 500,
-  purchaseDate: new Date().toISOString(),
-  offerAmount: 500,
-  offerBuyer: 'ethlick',
-  offerDate: new Date().toISOString(),
-  claimedStatus: true
-};
+// Initialize data structure - now stores per-username offers
+let offersData = {};
 
 // Load data from file on startup
 async function loadData() {
@@ -90,6 +81,7 @@ async function loadData() {
     console.log('✅ Data loaded from file');
   } catch (error) {
     console.log('📝 No existing data file, using defaults');
+    offersData = {};
     await saveData();
   }
 }
@@ -106,33 +98,64 @@ async function saveData() {
 
 // API Routes
 
-// Get all offers data
+// Get offers data for a specific username or all offers
 app.get('/api/offers', (req, res) => {
-  res.json(offersData);
+  const username = req.query.u || req.query.username;
+  
+  if (username) {
+    // Return data for specific username
+    const userData = offersData[username];
+    if (userData) {
+      res.json(userData);
+    } else {
+      res.status(404).json({ 
+        success: false, 
+        message: `No offer data found for username: ${username}` 
+      });
+    }
+  } else {
+    // Return all offers
+    res.json(offersData);
+  }
 });
 
 // Update offers data (from admin panel)
 app.post('/api/offers/update', async (req, res) => {
   try {
     const updates = req.body;
+    const username = updates.mainUsername;
     
-    // Validate and update fields
-    if (updates.mainUsername !== undefined) offersData.mainUsername = updates.mainUsername;
-    if (updates.ownerUsername !== undefined) offersData.ownerUsername = updates.ownerUsername;
-    if (updates.salePrice !== undefined) offersData.salePrice = parseFloat(updates.salePrice);
-    if (updates.purchaseDate !== undefined) offersData.purchaseDate = updates.purchaseDate;
-    if (updates.offerAmount !== undefined) offersData.offerAmount = parseFloat(updates.offerAmount);
-    if (updates.offerBuyer !== undefined) offersData.offerBuyer = updates.offerBuyer;
-    if (updates.offerDate !== undefined) offersData.offerDate = updates.offerDate;
-    if (updates.claimedStatus !== undefined) offersData.claimedStatus = updates.claimedStatus;
+    if (!username) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'mainUsername is required' 
+      });
+    }
+    
+    // Create or update offer for this username
+    if (!offersData[username]) {
+      offersData[username] = {};
+    }
+    
+    // Update fields for this username
+    if (updates.ownerUsername !== undefined) offersData[username].ownerUsername = updates.ownerUsername;
+    if (updates.salePrice !== undefined) offersData[username].salePrice = parseFloat(updates.salePrice);
+    if (updates.purchaseDate !== undefined) offersData[username].purchaseDate = updates.purchaseDate;
+    if (updates.offerAmount !== undefined) offersData[username].offerAmount = parseFloat(updates.offerAmount);
+    if (updates.offerBuyer !== undefined) offersData[username].offerBuyer = updates.offerBuyer;
+    if (updates.offerDate !== undefined) offersData[username].offerDate = updates.offerDate;
+    if (updates.claimedStatus !== undefined) offersData[username].claimedStatus = updates.claimedStatus;
+    
+    // Store the mainUsername in the data itself
+    offersData[username].mainUsername = username;
     
     // Save to file
     await saveData();
     
     res.json({ 
       success: true, 
-      message: 'Offers data updated successfully',
-      data: offersData 
+      message: `Offers data updated for @${username}`,
+      data: offersData[username]
     });
   } catch (error) {
     console.error('Error updating offers:', error);
@@ -147,16 +170,30 @@ app.post('/api/offers/update', async (req, res) => {
 // Generate new offer with current timestamp
 app.post('/api/offers/generate', async (req, res) => {
   try {
+    const username = req.body.username || req.body.mainUsername;
+    
+    if (!username) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'username is required' 
+      });
+    }
+    
     const now = new Date();
-    offersData.offerDate = now.toISOString();
-    offersData.purchaseDate = now.toISOString();
+    
+    if (!offersData[username]) {
+      offersData[username] = {};
+    }
+    
+    offersData[username].offerDate = now.toISOString();
+    offersData[username].purchaseDate = now.toISOString();
     
     await saveData();
     
     res.json({ 
       success: true, 
-      message: 'New offer generated with current timestamp',
-      data: offersData 
+      message: `New offer generated for @${username}`,
+      data: offersData[username]
     });
   } catch (error) {
     console.error('Error generating offer:', error);

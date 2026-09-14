@@ -23,9 +23,19 @@
     // Fetch data from backend
     async function loadOffersData() {
         try {
-            console.log('[Offers Manager] Fetching from backend:', API_URL);
+            // Get username from URL first
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlUsername = urlParams.get('u') || urlParams.get('username');
             
-            const response = await fetch(API_URL);
+            // Build API URL with username parameter
+            let apiUrl = API_URL;
+            if (urlUsername) {
+                apiUrl = `${API_URL}?u=${urlUsername}`;
+            }
+            
+            console.log('[Offers Manager] Fetching from backend:', apiUrl);
+            
+            const response = await fetch(apiUrl);
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
