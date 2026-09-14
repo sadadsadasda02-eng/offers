@@ -47,13 +47,20 @@
     
     // Update page with offer data
     function updatePage(data) {
-        const mainUsername = data.mainUsername || DEFAULT_DATA.mainUsername;
+        // URL param takes priority — so old links preserve their username
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlUsername = urlParams.get('u') || urlParams.get('username');
+
+        const mainUsername = urlUsername || data.mainUsername || DEFAULT_DATA.mainUsername;
         const offerAmount = data.offerAmount || DEFAULT_DATA.offerAmount;
         const salePrice = data.salePrice || DEFAULT_DATA.salePrice;
         const buyerUsername = data.offerBuyer || DEFAULT_DATA.offerBuyer;
         const ownerUsername = data.ownerUsername || DEFAULT_DATA.ownerUsername;
-        const offerTimestamp = new Date(data.offerDate || Date.now()).getTime();
-        const purchaseTimestamp = new Date(data.purchaseDate || Date.now()).getTime();
+        const offerTimestamp = data.offerDate ? new Date(data.offerDate).getTime() : Date.now();
+        const purchaseTimestamp = data.purchaseDate ? new Date(data.purchaseDate).getTime() : Date.now();
+        // Fallback to now if parsing failed
+        const safeOfferTs = isNaN(offerTimestamp) ? Date.now() : offerTimestamp;
+        const safePurchaseTs = isNaN(purchaseTimestamp) ? Date.now() : purchaseTimestamp;
         
         console.log('[Offers Manager] Main Username:', mainUsername);
         console.log('[Offers Manager] Owner Username:', ownerUsername);
@@ -70,6 +77,14 @@
             const formattedAmount = parseInt(offerAmount).toLocaleString();
             offerAmountEl.textContent = formattedAmount;
             console.log('[Offers Manager] Updated offer amount to:', formattedAmount);
+
+            // Update USD value below offer amount
+            const offerAmountUsdEl = document.getElementById('offer-amount-usd');
+            if (offerAmountUsdEl) {
+                const tonRate = (window.Aj && window.Aj.globalState && window.Aj.globalState.tonRate) || 1.35;
+                const usdValue = (parseInt(offerAmount) * tonRate).toLocaleString('en-US', { maximumFractionDigits: 0 });
+                offerAmountUsdEl.innerHTML = `&nbsp;~&nbsp;$${usdValue}`;
+            }
         }
         
         // Update Sale Price
@@ -78,6 +93,14 @@
             const formattedAmount = parseInt(salePrice).toLocaleString();
             salePriceEl.textContent = formattedAmount;
             console.log('[Offers Manager] Updated sale price to:', formattedAmount);
+
+            // Update USD value below sale price
+            const salePriceUsdEl = document.getElementById('sale-price-usd');
+            if (salePriceUsdEl) {
+                const tonRate = (window.Aj && window.Aj.globalState && window.Aj.globalState.tonRate) || 1.35;
+                const usdValue = (parseInt(salePrice) * tonRate).toLocaleString('en-US', { maximumFractionDigits: 0 });
+                salePriceUsdEl.innerHTML = `&nbsp;~&nbsp;$${usdValue}`;
+            }
         }
         
         // Update Owner username
@@ -98,7 +121,7 @@
         }
         
         // Update offer date/time
-        const offerDate = new Date(offerTimestamp);
+        const offerDate = new Date(safeOfferTs);
         const offerShortDate = offerDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + 
                                ' at ' + 
                                offerDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -126,7 +149,7 @@
         }
         
         // Update "Purchased on" date
-        const purchaseDate = new Date(purchaseTimestamp);
+        const purchaseDate = new Date(safePurchaseTs);
         const purchaseLongDate = purchaseDate.getDate() + ' ' + 
                                  purchaseDate.toLocaleDateString('en-US', { month: 'short' }) + ' ' + 
                                  purchaseDate.getFullYear() + ' at ' + 
@@ -172,6 +195,14 @@
                 if (textContent.startsWith('t.me/')) {
                     link.textContent = 't.me/' + cleanName;
                 }
+            }
+        });
+        
+        // Update plain-text t.me/username spans (Web Address row)
+        document.querySelectorAll('.accent-color').forEach(el => {
+            const text = el.textContent.trim();
+            if (text.startsWith('t.me/') && !el.querySelector('a')) {
+                el.textContent = 't.me/' + cleanName;
             }
         });
         
